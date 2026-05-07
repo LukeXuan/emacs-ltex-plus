@@ -1018,6 +1018,24 @@ protocol robustness."
   (advice-add 'lsp--create-filter-function :override #'lsp-core--create-filter-function-patch)
   (advice-add 'lsp-request-while-no-input :override #'lsp-core-request-while-no-input-patch))
 
+(defun lsp-ltex-plus--restore-completion-capability (workspace)
+  "Restore the completionProvider on WORKSPACE under `lsp-use-plists' t.
+The server advertises `completionProvider: {}' (a valid empty options
+object).  Emacs\\='s `json-parse-string' with `:object-type \\='plist'
+parses an empty JSON object as nil, which is indistinguishable from a
+missing field, so `lsp:server-capabilities-completion-provider?'
+returns nil and `lsp-mode' treats the server as not supporting
+completion.  Replace the collapsed nil with a single-key plist that
+survives downstream accessors and accurately reflects the server\\='s
+behaviour: `(:resolveProvider nil)' — ltex-ls-plus implements no
+`completionItem/resolve' handler, so the declaration is honest."
+  (when lsp-use-plists
+    (let ((caps (lsp--workspace-server-capabilities workspace)))
+      (when (and caps
+                 (plist-member caps :completionProvider)
+                 (null (plist-get caps :completionProvider)))
+        (plist-put caps :completionProvider '(:resolveProvider nil))))))
+
 (defun lsp-ltex-plus--suppress-progress (orig-fn workspace params)
   "Swallow ltex-ls-plus progress notifications.
 Notifications are silenced when `lsp-ltex-plus-show-progress' is nil.
@@ -1300,7 +1318,8 @@ measurements."
     ;; `lsp-register-client' call fires).  Changing `lsp-ltex-plus-multi-root'
     ;; after that has no effect until Emacs restarts.
     :multi-root lsp-ltex-plus-multi-root
-    :initialized-fn (lambda (_workspace)
+    :initialized-fn (lambda (workspace)
+                      (lsp-ltex-plus--restore-completion-capability workspace)
                       (lsp-ltex-plus--log "Server initialized; pushing configuration...")
                       ;; Object- and boolean-typed fields go through the
                       ;; `--obj-or-empty' / `--bool' helpers so `nil' serializes
