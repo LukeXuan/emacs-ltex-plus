@@ -665,7 +665,8 @@ No-op if `lsp-mode' is not loaded or no ltex-ls-plus workspace is active."
 Two steps run together:
 
   1. Re-read the four external plist files under
-     `~/.emacs.d/lsp-ltex-plus/' and rebuild the merged views
+     the `lsp-ltex-plus/' subdirectory of `user-emacs-directory'
+     and rebuild the merged views
      (each merged view combines a file's contents with its
      corresponding user defcustom).
   2. Send `workspace/didChangeConfiguration' to every running
@@ -810,7 +811,7 @@ outgoing side is needed (except for empty maps, where
 ;; 3. Stale Callback Protection: prevents synchronous requests from throwing
 ;;    after they have already timed out or been cancelled.
 
-(defun lsp-core--parser-on-message-patch (json-data workspace)
+(defun lsp-ltex-plus--parser-on-message-patch (json-data workspace)
   "Patched `lsp--parser-on-message' to prioritize \\='method\\=' (Kind-First routing).
 
 JSON-DATA is the parsed JSON message; WORKSPACE is the active lsp workspace.
@@ -895,7 +896,7 @@ older `lsp-mode' it still serves as the backport."
             ('request
              (lsp--on-request workspace json-data))))))))
 
-(defun lsp-core--create-filter-function-patch (workspace)
+(defun lsp-ltex-plus--create-filter-function-patch (workspace)
   "Patched `lsp--create-filter-function' with resilient message dispatch.
 WORKSPACE is the active workspace.
 
@@ -1005,7 +1006,7 @@ older `lsp-mode' it still serves as the backport."
           (when queued-tag
             (throw queued-tag queued-value)))))))
 
-(cl-defun lsp-core-request-while-no-input-patch (method params)
+(cl-defun lsp-ltex-plus--request-while-no-input-patch (method params)
   "Patched `lsp-request-while-no-input' with stale callback protection.
 
 Send METHOD with PARAMS, but prevent the success/error callbacks
@@ -1108,9 +1109,9 @@ and could in principle drift from upstream over time."
 These patch `lsp--parser-on-message', `lsp--create-filter-function',
 and `lsp-request-while-no-input' using :override advice to improve
 protocol robustness."
-  (advice-add 'lsp--parser-on-message :override #'lsp-core--parser-on-message-patch)
-  (advice-add 'lsp--create-filter-function :override #'lsp-core--create-filter-function-patch)
-  (advice-add 'lsp-request-while-no-input :override #'lsp-core-request-while-no-input-patch))
+  (advice-add 'lsp--parser-on-message :override #'lsp-ltex-plus--parser-on-message-patch)
+  (advice-add 'lsp--create-filter-function :override #'lsp-ltex-plus--create-filter-function-patch)
+  (advice-add 'lsp-request-while-no-input :override #'lsp-ltex-plus--request-while-no-input-patch))
 
 (defun lsp-ltex-plus--restore-completion-capability (workspace)
   "Restore the completionProvider on WORKSPACE under `lsp-use-plists' t.
@@ -1672,7 +1673,13 @@ silently."
               (flymake-start))))))))
 
 
-;; Initialize on lsp-mode load.
+;; Register with lsp-mode after it has loaded.  This is the standard
+;; pattern for `:add-on?' lsp-mode clients (lsp-pyright, lsp-haskell,
+;; etc.) — we cannot call `lsp-register-client' at top level because it
+;; requires lsp-mode to be loaded, and we want lsp-mode to load lazily
+;; on first use rather than as a top-level side effect of requiring this
+;; package.  `package-lint' warns about `with-eval-after-load' in package
+;; code; this use is the documented exception.
 (with-eval-after-load 'lsp-mode
   (lsp-ltex-plus--setup))
 
