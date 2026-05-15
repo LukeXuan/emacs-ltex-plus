@@ -250,13 +250,10 @@ For a more robust setup using `use-package` and `straight.el`, you can use the f
   ;; programming languages in lsp-ltex-plus-major-modes.
   (lsp-ltex-plus-check-programming-languages t)
 
-  ;; Apply the "Kind-First" protocol patch to lsp-mode. Strongly recommended
-  ;; if you uncomment the remote server URI above — network latency makes
-  ;; JSON-RPC ID collisions almost inevitable, which can stall the connection.
-  ;; Safe to leave enabled for local use too; benefits every LSP client, not
-  ;; only ltex-ls-plus.  See the "Lsp-mode Protocol Patch" section below for
-  ;; details.
-  (lsp-ltex-plus-apply-kind-first-patch t)
+  ;; lsp-ltex-plus-apply-kind-first-patch is deprecated and no longer set
+  ;; in the recommended config — the five upstream lsp-mode fixes it once
+  ;; worked around have been merged. See "Recommended `lsp-mode` Revision"
+  ;; near the top of the README.
 
   :init
   ;; Enable lsp-ltex-plus for all supported major modes. The full package
@@ -277,7 +274,7 @@ For a more robust setup using `use-package` and `straight.el`, you can use the f
 ### Key Settings
 - `lsp-ltex-plus-language`: The language variant to check (e.g., `"en-US"`, `"de-DE"`).
 - `lsp-ltex-plus-additional-rules-enable-picky-rules`: Set to `t` if you want stricter grammar checks (e.g., passive voice detection).
-- `lsp-ltex-plus-apply-kind-first-patch`: Set to `t` to enable the protocol deadlock fix (defaults to `nil`). **Strongly recommended if you use a remote server** — see [Communication Stalls — No More Diagnostics](#communication-stalls--no-more-diagnostics) for details.
+- `lsp-ltex-plus-apply-kind-first-patch`: **Deprecated.** Defaults to `nil`. The five `lsp-mode` bugs this option once worked around are now fixed upstream — see [Recommended `lsp-mode` Revision](#recommended-lsp-mode-revision). Leave it unset; it will be removed in a future release once the package's `lsp-mode` minimum is bumped.
 
 For the full list of available settings, see [Customization](#customization).
 
@@ -360,7 +357,7 @@ An empty space means the parameter has no direct counterpart at that layer: typi
 | `lsp-ltex-plus-check-frequency` | L | Controls when documents should be checked. *Choices:* `"edit"` (default, on every keystroke), `"save"` (on open and save), `"manual"` (explicit commands only). | X | |
 | `lsp-ltex-plus-clear-diagnostics-when-closing-file` | L | Whether to clear diagnostics when a file is closed. *Type:* boolean; *default:* `t`. | X | |
 | `lsp-ltex-plus-show-progress` | S | Show `ltex-ls-plus` progress updates in the mode line (the `⌛` prefix and optional spinner). Set to nil to silence the flicker on every keystroke without affecting progress rendering for other LSP clients. *Type:* boolean; *default:* `t`. | | |
-| `lsp-ltex-plus-apply-kind-first-patch` | S | Whether to apply the 'Kind-First' routing patch to lsp-mode. *Type:* boolean; *default:* `nil`. | | |
+| `lsp-ltex-plus-apply-kind-first-patch` | S | **Deprecated** — see [Recommended `lsp-mode` Revision](#recommended-lsp-mode-revision). Whether to apply the 'Kind-First' routing patch (and four related workarounds) to lsp-mode; all five are now fixed upstream. *Type:* boolean; *default:* `nil`. | | |
 | `lsp-ltex-plus-show-latency` | S | When non-nil, echo the server round-trip time after every check. Reports both the cold start (`"Completed initial spell check in N ms."` after `textDocument/didOpen`) and the warm path (`"Completed spell check in N ms."` after each `textDocument/didChange`); see [Measuring Server Latency](#measuring-server-latency). *Type:* boolean; *default:* `nil`. | | |
 | `lsp-ltex-plus-multi-root` | S | Register the client as multi-root so a single `ltex-ls-plus` JVM handles all folders in the session. Leave enabled unless you have a specific need to isolate projects — disabling it spawns one JVM per project root, which can balloon memory usage. *Type:* boolean; *default:* `t`. | | |
 
@@ -509,15 +506,9 @@ The **remote LanguageTool server** (when `lsp-ltex-plus-lt-server-uri` points at
 
 This is most likely with a **remote/online server**, where both network latency and the server's own processing time (it is a shared service handling many requests) mean that responses take long enough for message overlaps to become virtually inevitable. It can also occur, though rarely, with the local server.
 
-**Fix:** Enable the Kind-First protocol patch:
+**Fix:** Update `lsp-mode` to a build that contains the upstream Kind-First routing fix ([PR #5055](https://github.com/emacs-lsp/lsp-mode/pull/5055), merged 2026-05-11). Any commit on or after [`0951bf38`](https://github.com/emacs-lsp/lsp-mode/commit/0951bf38) (2026-05-15) suffices — see [Recommended `lsp-mode` Revision](#recommended-lsp-mode-revision) for the full list of related fixes.
 
-```elisp
-(use-package lsp-ltex-plus
-  :custom
-  (lsp-ltex-plus-apply-kind-first-patch t))
-```
-
-This makes `lsp-mode` classify messages by their content (presence of a `"method"` field) rather than by ID alone, which is the correct approach per the JSON-RPC specification. See [Lsp-mode Protocol Patch](#lsp-mode-protocol-patch) for the full technical explanation.
+On older `lsp-mode` builds, the legacy fallback is to set `lsp-ltex-plus-apply-kind-first-patch` to `t`, which installs the same routing logic as `:override` advice. This option is now deprecated; prefer upgrading `lsp-mode`.
 
 ### Server Crashes or Memory Issues
 
@@ -654,6 +645,8 @@ A remote LanguageTool server typically adds 100–300 ms on top of both numbers,
 Because the warm-path message fires after every check (i.e. on essentially every keystroke when `lsp-ltex-plus-check-frequency` is `"edit"` and the debounce interval is small), it is intended for investigation only. Turn the flag off again when you are done measuring. For richer diagnostic output — including entries in the `*lsp-ltex-plus::client*` log buffer and raw JSON-RPC dumps under `/tmp` — see `lsp-ltex-plus-debug` instead; the two flags are independent and can be combined.
 
 ### Lsp-mode Protocol Patches
+
+> **Deprecated as of 2026-05-15.** All three patches described below have been merged into `lsp-mode` upstream (alongside two related fixes); see [Recommended `lsp-mode` Revision](#recommended-lsp-mode-revision). The `lsp-ltex-plus-apply-kind-first-patch` toggle is now a no-op against any sufficiently recent `lsp-mode` and will be removed once the package's `lsp-mode` minimum is bumped. This section is preserved as a technical reference for users on older `lsp-mode` builds and for the historical record.
 
 This package includes several surgical fixes for `lsp-mode` to improve protocol robustness. They are applied globally when `lsp-ltex-plus-apply-kind-first-patch` is non-nil.
 
