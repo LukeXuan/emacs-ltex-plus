@@ -816,7 +816,17 @@ outgoing side is needed (except for empty maps, where
 JSON-DATA is the parsed JSON message; WORKSPACE is the active lsp workspace.
 
 This patch prevents server-initiated requests from being misrouted as responses
-to client requests when IDs collide."
+to client requests when IDs collide.
+
+Status: deprecated.  The same fix has been merged into `lsp-mode'
+upstream as PR #5055 (commit fbc926fd, 2026-05-11).  This function
+is installed as `:override' advice on `lsp--parser-on-message' by
+`lsp-ltex-plus--apply-lsp-mode-patch', which is called only when the
+user has set `lsp-ltex-plus-apply-kind-first-patch' to t AND
+`lsp-ltex-plus--maybe-upstream-fixes-cache' returns nil (i.e. the
+installed `lsp-mode' does not yet contain the upstream fix).  On a
+recent `lsp-mode' this advice is therefore not installed; on an
+older `lsp-mode' it still serves as the backport."
   ;; Define a local helper for JSON parsing. This is an auxiliary function
   ;; used exclusively by the patch to ensure the package remains standalone.
   (cl-labels ((json-get (obj key)
@@ -892,7 +902,17 @@ WORKSPACE is the active workspace.
 This patch ensures that when the server sends multiple updates
 bundled together, an interruption in one (like typing during
 completion) doesn\\='t cause the rest of the bundle to be
-discarded."
+discarded.
+
+Status: deprecated.  The same fix has been merged into `lsp-mode'
+upstream as PR #5057 (commit 0951bf38, 2026-05-15).  This function
+is installed as `:override' advice on `lsp--create-filter-function'
+by `lsp-ltex-plus--apply-lsp-mode-patch', which is called only when
+the user has set `lsp-ltex-plus-apply-kind-first-patch' to t AND
+`lsp-ltex-plus--maybe-upstream-fixes-cache' returns nil (i.e. the
+installed `lsp-mode' does not yet contain the upstream fix).  On a
+recent `lsp-mode' this advice is therefore not installed; on an
+older `lsp-mode' it still serves as the backport."
   (let ((body-received 0)
         leftovers body-length body chunk)
     (lambda (_proc input)
@@ -991,7 +1011,17 @@ discarded."
 Send METHOD with PARAMS, but prevent the success/error callbacks
 from throwing \\='lsp-done after the function has already unwound
 \(e.g. due to timeout or cancellation), which would otherwise
-cause the throw to escape to the top level."
+cause the throw to escape to the top level.
+
+Status: deprecated.  The same fix has been merged into `lsp-mode'
+upstream as PR #5056 (commit e5cdc6c8, 2026-05-12).  This function
+is installed as `:override' advice on `lsp-request-while-no-input'
+by `lsp-ltex-plus--apply-lsp-mode-patch', which is called only when
+the user has set `lsp-ltex-plus-apply-kind-first-patch' to t AND
+`lsp-ltex-plus--maybe-upstream-fixes-cache' returns nil (i.e. the
+installed `lsp-mode' does not yet contain the upstream fix).  On a
+recent `lsp-mode' this advice is therefore not installed; on an
+older `lsp-mode' it still serves as the backport."
   (if (or non-essential (not lsp-request-while-no-input-may-block))
       (let* ((send-time (float-time))
              ;; max time by which we must get a response
@@ -1092,7 +1122,20 @@ returns nil and `lsp-mode' treats the server as not supporting
 completion.  Replace the collapsed nil with a single-key plist that
 survives downstream accessors and accurately reflects the server\\='s
 behaviour: `(:resolveProvider nil)' — ltex-ls-plus implements no
-`completionItem/resolve' handler, so the declaration is honest."
+`completionItem/resolve' handler, so the declaration is honest.
+
+Status: deprecated.  The same fix has been merged into `lsp-mode'
+upstream as PR #5059 (commit 7c5b5263, 2026-05-10), where empty
+JSON objects are preserved through a non-nil sentinel under
+`lsp-use-plists'.  This function is called from `:initialized-fn'
+on every workspace, but only when
+`lsp-ltex-plus--maybe-upstream-fixes-cache' returns nil (i.e. the
+installed `lsp-mode' does not yet contain the upstream fix).
+Unlike the three `:override' advices, this workaround was never
+gated by `lsp-ltex-plus-apply-kind-first-patch' — it always ran
+silently — so the deprecation is silent too: no log message, the
+call is simply skipped on a recent `lsp-mode'.  On an older
+`lsp-mode' it still serves as the backport."
   (when lsp-use-plists
     (let ((caps (lsp--workspace-server-capabilities workspace)))
       (when (and caps
