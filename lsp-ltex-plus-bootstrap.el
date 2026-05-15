@@ -12,11 +12,11 @@
 
 ;;; Commentary:
 ;;
-;; Lightweight bootstrap for lsp-ltex-plus.  This file is the only part of
-;; the package that needs to be loaded at Emacs startup.  It defines the
-;; default major-mode → language-ID alist and two autoloaded entry points
-;; that let the full lsp-ltex-plus package load lazily — only when the user
-;; first opens a file whose major mode is in the list.
+;; Lightweight bootstrap for lsp-ltex-plus.  This file is the only part of the
+;; package that needs to be loaded at Emacs startup.  It defines the default
+;; major-mode → language-ID alist and two autoloaded entry points that let the
+;; full lsp-ltex-plus package load lazily — only when the user first opens a
+;; file whose major mode is in the list.
 ;;
 ;; Users normally do not load this file directly; it is pulled in
 ;; automatically when `lsp-ltex-plus-enable-for-modes' is called from the
