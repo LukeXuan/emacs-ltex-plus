@@ -2,8 +2,27 @@
 
 ## [Unreleased]
 
+
+## [0.3.4] - 2026-05-15
+
+### Deprecated
+- **`lsp-ltex-plus-apply-kind-first-patch` is deprecated.** All five `lsp-mode` protocol bugs this package historically worked around (PRs [#5052](https://github.com/emacs-lsp/lsp-mode/pull/5052), [#5055](https://github.com/emacs-lsp/lsp-mode/pull/5055), [#5056](https://github.com/emacs-lsp/lsp-mode/pull/5056), [#5057](https://github.com/emacs-lsp/lsp-mode/pull/5057), [#5059](https://github.com/emacs-lsp/lsp-mode/pull/5059)) have been merged upstream; the last of them landed on 2026-05-15 (commit [`0951bf38`](https://github.com/emacs-lsp/lsp-mode/commit/0951bf38)). The toggle still works on older `lsp-mode` builds and is harmless against newer ones (the `:override` advices simply replace upstream code that already mirrors them), but it adds no value and will be removed once `Package-Requires` is bumped past `0951bf38`. New users should leave it unset; existing users should remove it from their config and update `lsp-mode`.
+
+### Added
+- `lsp-ltex-plus--maybe-upstream-fixes-cache`: placeholder predicate that returns `nil`. Reserved for a future `fboundp`/`boundp` probe of a distinctive symbol postdating commit `0951bf38`. When it eventually returns non-nil, the package will skip applying the three `:override` advices in `lsp-ltex-plus--apply-lsp-mode-patch` (emitting a one-shot deprecation log if `lsp-ltex-plus-apply-kind-first-patch` is still set) and skip `lsp-ltex-plus--restore-completion-capability` on server init. The probe runs at most once per session and only when an opted-in code path actually fires it; default-config users pay zero cost.
+- `lsp-ltex-plus--restore-completion-capability`: silent workaround for the pre-PR-#5059 `lsp-mode` bug where `completionProvider: {}` parsed as `nil` under `lsp-use-plists t`, leaving the server marked as "no completion support". Called from `:initialized-fn`, gated by the placeholder predicate so it becomes a no-op on a fixed `lsp-mode`. Unlike the three `:override` advices, this workaround was never gated by `lsp-ltex-plus-apply-kind-first-patch`, it always ran silently.
+
 ### Changed
-- Persistence files now use a `.eld` extension by default (`stored-dictionary.eld`, `enabled-rules.eld`, `disabled-rules.eld`, `hidden-false-positives.eld`). `.eld` is the conventional Emacs extension for `prin1`-serialised Lisp data and is mapped to `lisp-data-mode` by `auto-mode-alist`, so opening the files by hand (or via Finder/Explorer/Nautilus) gets proper highlighting. Extensionless files left over from earlier versions are renamed automatically on first startup; users who have customised the file paths to non-`.eld` values are left alone.
+- Persistence files now use a `.eld` extension by default (`stored-dictionary.eld`, `enabled-rules.eld`, `disabled-rules.eld`, `hidden-false-positives.eld`). `.eld` is the conventional Emacs extension for `prin1`-serialised Lisp data and is mapped to `lisp-data-mode` by `auto-mode-alist`, so opening the files by hand (or via Finder/Explorer/Nautilus) gets proper highlighting. Extensionless files left over from earlier versions are renamed automatically on first startup; users who have customized the file paths are invited (though it is not mandatory; rather a good-style policy) to update the filenames  to contain the `.eld` extension. 
+
+### Documentation
+- New "Recommended `lsp-mode` Revision" subsection in the README with a per-PR table (#5052, #5055, #5056, #5057, #5059) and the cutoff commit ([`0951bf38`](https://github.com/emacs-lsp/lsp-mode/commit/0951bf38), 2026-05-15) at which all five fixes are present.
+- Every reference to `lsp-ltex-plus-apply-kind-first-patch` (use-package example, Key Settings bullet, parameter table, Troubleshooting "Communication Stalls", Under-the-Hood "Lsp-mode Protocol Patches") now carries a deprecation note and a link to the recommendation section. The protocol-patches reference subsection is preserved verbatim for users still on older `lsp-mode` builds.
+- Deprecation status blocks added to the docstrings of the four affected functions: `lsp-core--parser-on-message-patch` (PR #5055), `lsp-core--create-filter-function-patch` (PR #5057), `lsp-core-request-while-no-input-patch` (PR #5056), and `lsp-ltex-plus--restore-completion-capability` (PR #5059). Each names the upstream merge commit and the gating chain.
+- The `lsp-ltex-plus-completion-enabled` parameter row now notes that word completion requires an `lsp-mode` build containing [PR #5052](https://github.com/emacs-lsp/lsp-mode/pull/5052).
+- New section with performance tips for `lsp-mode` (garbage-collection tuning, switching to `lsp-use-plists`).
+- Repository URL corrected throughout the README (thanks to @real-or-random for PR #1).
+- Assorted docstring cleanups so the package passes `checkdoc`.
 
 ## [0.3.3] - 2026-05-03
 
