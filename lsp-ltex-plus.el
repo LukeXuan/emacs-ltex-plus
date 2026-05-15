@@ -1404,7 +1404,8 @@ measurements."
     ;; after that has no effect until Emacs restarts.
     :multi-root lsp-ltex-plus-multi-root
     :initialized-fn (lambda (workspace)
-                      (lsp-ltex-plus--restore-completion-capability workspace)
+                      (unless (lsp-ltex-plus--maybe-upstream-fixes-cache)
+                        (lsp-ltex-plus--restore-completion-capability workspace))
                       (lsp-ltex-plus--log "Server initialized; pushing configuration...")
                       ;; Object- and boolean-typed fields go through the
                       ;; `--obj-or-empty' / `--bool' helpers so `nil' serializes
