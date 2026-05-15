@@ -1271,7 +1271,16 @@ measurements."
         (push (cons mode lang-id) lsp-language-id-configuration))))
 
   (when lsp-ltex-plus-apply-kind-first-patch
-    (lsp-ltex-plus--apply-lsp-mode-patch))
+    (if (lsp-ltex-plus--maybe-upstream-fixes-cache)
+        (lsp-ltex-plus--log
+         (concat "`lsp-ltex-plus-apply-kind-first-patch' is deprecated and "
+                 "bypassed: the underlying `lsp-mode' bugs have been fixed "
+                 "upstream (PRs #5055, #5056, #5057, #5059) and are present "
+                 "in your installed `lsp-mode'. Remove this option from your "
+                 "config; it defaults to nil. If you believe the patch is "
+                 "still needed, please open an issue at "
+                 "https://github.com/alberti42/emacs-ltex-plus."))
+      (lsp-ltex-plus--apply-lsp-mode-patch)))
 
   ;; Progress-silencing advice — only installed when the user has opted
   ;; in to hiding ltex-ls-plus progress updates by setting
