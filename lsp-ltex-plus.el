@@ -859,7 +859,7 @@ upstream as PR #5055 (commit fbc926fd, 2026-05-11).  This function
 is installed as `:override' advice on `lsp--parser-on-message' by
 `lsp-ltex-plus--apply-lsp-mode-patch', which is called only when the
 user has set `lsp-ltex-plus-apply-kind-first-patch' to t AND
-`lsp-ltex-plus--maybe-upstream-fixes-cache' returns nil (i.e. the
+`lsp-ltex-plus--maybe-upstream-fixes-present-p' returns nil (i.e. the
 installed `lsp-mode' does not yet contain the upstream fix).  On a
 recent `lsp-mode' this advice is therefore not installed; on an
 older `lsp-mode' it still serves as the backport."
@@ -945,7 +945,7 @@ upstream as PR #5057 (commit 0951bf38, 2026-05-15).  This function
 is installed as `:override' advice on `lsp--create-filter-function'
 by `lsp-ltex-plus--apply-lsp-mode-patch', which is called only when
 the user has set `lsp-ltex-plus-apply-kind-first-patch' to t AND
-`lsp-ltex-plus--maybe-upstream-fixes-cache' returns nil (i.e. the
+`lsp-ltex-plus--maybe-upstream-fixes-present-p' returns nil (i.e. the
 installed `lsp-mode' does not yet contain the upstream fix).  On a
 recent `lsp-mode' this advice is therefore not installed; on an
 older `lsp-mode' it still serves as the backport."
@@ -1054,7 +1054,7 @@ upstream as PR #5056 (commit e5cdc6c8, 2026-05-12).  This function
 is installed as `:override' advice on `lsp-request-while-no-input'
 by `lsp-ltex-plus--apply-lsp-mode-patch', which is called only when
 the user has set `lsp-ltex-plus-apply-kind-first-patch' to t AND
-`lsp-ltex-plus--maybe-upstream-fixes-cache' returns nil (i.e. the
+`lsp-ltex-plus--maybe-upstream-fixes-present-p' returns nil (i.e. the
 installed `lsp-mode' does not yet contain the upstream fix).  On a
 recent `lsp-mode' this advice is therefore not installed; on an
 older `lsp-mode' it still serves as the backport."
@@ -1101,7 +1101,7 @@ older `lsp-mode' it still serves as the backport."
             (throw 'input :interrupted))))
     (lsp-request method params)))
 
-(defun lsp-ltex-plus--maybe-upstream-fixes-cache ()
+(defun lsp-ltex-plus--maybe-upstream-fixes-present-p ()
   "Placeholder probe for upstream `lsp-mode' fixes.  Currently returns nil.
 
 Five LSP-protocol bugs that this package previously worked around have
@@ -1165,7 +1165,7 @@ upstream as PR #5059 (commit 7c5b5263, 2026-05-10), where empty
 JSON objects are preserved through a non-nil sentinel under
 `lsp-use-plists'.  This function is called from `:initialized-fn'
 on every workspace, but only when
-`lsp-ltex-plus--maybe-upstream-fixes-cache' returns nil (i.e. the
+`lsp-ltex-plus--maybe-upstream-fixes-present-p' returns nil (i.e. the
 installed `lsp-mode' does not yet contain the upstream fix).
 Unlike the three `:override' advices, this workaround was never
 gated by `lsp-ltex-plus-apply-kind-first-patch' — it always ran
@@ -1350,7 +1350,7 @@ measurements."
         (push (cons mode lang-id) lsp-language-id-configuration))))
 
   (when lsp-ltex-plus-apply-kind-first-patch
-    (if (lsp-ltex-plus--maybe-upstream-fixes-cache)
+    (if (lsp-ltex-plus--maybe-upstream-fixes-present-p)
         (lsp-ltex-plus--log
          (concat "`lsp-ltex-plus-apply-kind-first-patch' is deprecated and "
                  "bypassed: the underlying `lsp-mode' bugs have been fixed "
@@ -1483,7 +1483,7 @@ measurements."
     ;; after that has no effect until Emacs restarts.
     :multi-root lsp-ltex-plus-multi-root
     :initialized-fn (lambda (workspace)
-                      (unless (lsp-ltex-plus--maybe-upstream-fixes-cache)
+                      (unless (lsp-ltex-plus--maybe-upstream-fixes-present-p)
                         (lsp-ltex-plus--restore-completion-capability workspace))
                       (lsp-ltex-plus--log "Server initialized; pushing configuration...")
                       ;; Object- and boolean-typed fields go through the
