@@ -81,6 +81,10 @@
 (declare-function flycheck-buffer "ext:flycheck")
 (declare-function flymake-start "flymake")
 
+;; Forward declaration: the minor mode is defined further down the file
+;; but is referenced earlier (e.g. in the lsp client's `:activation-fn').
+(defvar lsp-ltex-plus-mode)
+
 ;;;; -- Customization ----------------------------------------------------------
 
 (defgroup lsp-ltex-plus nil
