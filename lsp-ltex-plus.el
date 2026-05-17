@@ -1106,7 +1106,7 @@ older `lsp-mode' it still serves as the backport."
     (lsp-request method params)))
 
 (defun lsp-ltex-plus--maybe-upstream-fixes-present-p ()
-  "Placeholder probe for upstream `lsp-mode' fixes.  Currently returns nil.
+  "Return non-nil when upstream `lsp-mode' already carries the protocol fixes.
 
 Five LSP-protocol bugs that this package previously worked around have
 since been fixed upstream in `lsp-mode' (all on master as of
@@ -1118,21 +1118,36 @@ since been fixed upstream in `lsp-mode' (all on master as of
   - PR #5057 — resilient batch dispatch on framing errors and throws
   - PR #5059 — empty-object capabilities preserved under `lsp-use-plists'
 
-When this probe returns non-nil the package will (a) skip applying the
-three `:override' advices in `lsp-ltex-plus--apply-lsp-mode-patch' and
-emit a deprecation log if `lsp-ltex-plus-apply-kind-first-patch' is
-still set, and (b) skip `lsp-ltex-plus--restore-completion-capability'
-on server init.
+This probe is purely advisory.  It is NOT the gate that decides
+whether to install the patches.  That gate is the user-facing option
+`lsp-ltex-plus-apply-kind-first-patch', which the user opts into
+explicitly; when that option is set, the patches are always applied
+regardless of what this probe returns.
 
-For now the function returns nil unconditionally because none of these
-PRs introduces a distinctive symbol that survives byte/native
-compilation and lives in a file `lsp-mode' loads by default.  A future
-commit on `lsp-mode' master is likely to add such a symbol, at which
-point this placeholder can be replaced with a one-line `fboundp' or
-`boundp' check.
+The probe's role is the opposite direction: when the user has the
+option enabled but their `lsp-mode' already carries the fixes
+upstream — typically because they forgot to remove the option after
+upgrading `lsp-mode', or set it without realising the fixes had since
+landed — we emit a deprecation warning suggesting they drop the
+option from their config.  Nothing is skipped.
 
-Until then the user-facing recommendation in the README is to install
-`lsp-mode' from a commit on or after 0951bf38 (2026-05-15) and remove
+Skipping based on this probe would be dangerous: the probe relies on
+a marker symbol (`lsp--inlay-hint-tooltip-text') that could in
+principle be renamed, removed, or moved in a future `lsp-mode'
+release without the underlying protocol fixes being reverted, or vice
+versa.  Trusting the probe to suppress the patches would risk leaving
+the user unprotected from the very bugs they opted in to work around.
+A spurious deprecation warning, by contrast, is harmless.
+
+The probe checks for `lsp--inlay-hint-tooltip-text', a function added
+to `lsp-mode.el' in commit 8b04cf63 (2026-05-17) — the commit
+immediately after the last protocol fix (0951bf38, 2026-05-15).  It
+lives in a file `lsp-mode' loads by default and survives byte and
+native compilation, so `fboundp' is a reliable best-effort marker
+that the user's `lsp-mode' is at or past the protocol-fix series.
+
+The user-facing recommendation in the README is to install `lsp-mode'
+from a commit on or after 0951bf38 (2026-05-15) and remove
 `lsp-ltex-plus-apply-kind-first-patch' from their config.  On a recent
 `lsp-mode' the patches in this package are effectively a no-op anyway:
 the `:override' advices replace upstream code that already mirrors what
@@ -1141,7 +1156,7 @@ The recommendation to disable it is purely about being future-proof:
 keep the configuration tied to the upstream implementation that is now
 fixed, rather than carrying a local patch that no longer adds value
 and could in principle drift from upstream over time."
-  nil)
+  (fboundp 'lsp--inlay-hint-tooltip-text))
 
 (defun lsp-ltex-plus--apply-lsp-mode-patch ()
   "Apply the protocol patches to `lsp-mode'.
@@ -1164,18 +1179,18 @@ survives downstream accessors and accurately reflects the server\\='s
 behaviour: `(:resolveProvider nil)' — ltex-ls-plus implements no
 `completionItem/resolve' handler, so the declaration is honest.
 
-Status: deprecated.  The same fix has been merged into `lsp-mode'
-upstream as PR #5059 (commit 7c5b5263, 2026-05-10), where empty
-JSON objects are preserved through a non-nil sentinel under
-`lsp-use-plists'.  This function is called from `:initialized-fn'
-on every workspace, but only when
-`lsp-ltex-plus--maybe-upstream-fixes-present-p' returns nil (i.e. the
-installed `lsp-mode' does not yet contain the upstream fix).
-Unlike the three `:override' advices, this workaround was never
-gated by `lsp-ltex-plus-apply-kind-first-patch' — it always ran
-silently — so the deprecation is silent too: no log message, the
-call is simply skipped on a recent `lsp-mode'.  On an older
-`lsp-mode' it still serves as the backport."
+Status: effectively a no-op on recent `lsp-mode'.  The same fix has
+been merged upstream as PR #5059 (commit 7c5b5263, 2026-05-10),
+where empty JSON objects are preserved through a non-nil sentinel
+under `lsp-use-plists'.  This function is called unconditionally
+from `:initialized-fn' on every workspace: on a recent `lsp-mode'
+the slot is no longer nil so the `when' guard fails and the call
+does nothing; on an older `lsp-mode' it still serves as the
+backport.  Calling unconditionally — rather than gating on
+`lsp-ltex-plus--maybe-upstream-fixes-present-p' — is intentional:
+the function is self-guarding and free, while gating would risk
+silently dropping the workaround if a future `lsp-mode' keeps the
+probe's marker symbol but regresses or relocates the PR #5059 fix."
   (when lsp-use-plists
     (let ((caps (lsp--workspace-server-capabilities workspace)))
       (when (and caps
@@ -1354,16 +1369,17 @@ measurements."
         (push (cons mode lang-id) lsp-language-id-configuration))))
 
   (when lsp-ltex-plus-apply-kind-first-patch
-    (if (lsp-ltex-plus--maybe-upstream-fixes-present-p)
-        (lsp-ltex-plus--log
-         (concat "`lsp-ltex-plus-apply-kind-first-patch' is deprecated and "
-                 "bypassed: the underlying `lsp-mode' bugs have been fixed "
-                 "upstream (PRs #5055, #5056, #5057, #5059) and are present "
-                 "in your installed `lsp-mode'. Remove this option from your "
-                 "config; it defaults to nil. If you believe the patch is "
-                 "still needed, please open an issue at "
-                 "https://github.com/ltex-plus/emacs-ltex-plus."))
-      (lsp-ltex-plus--apply-lsp-mode-patch)))
+    (when (lsp-ltex-plus--maybe-upstream-fixes-present-p)
+      (lsp-ltex-plus--log
+       (concat "`lsp-ltex-plus-apply-kind-first-patch' looks deprecated: "
+               "the underlying `lsp-mode' bugs appear to be fixed upstream "
+               "(PRs #5055, #5056, #5057, #5059) in your installed "
+               "`lsp-mode'. The patch will still be applied since you opted "
+               "in, but you can likely remove this option from your config; "
+               "it defaults to nil. If you believe the patch is still "
+               "needed, please open an issue at "
+               "https://github.com/ltex-plus/emacs-ltex-plus.")))
+    (lsp-ltex-plus--apply-lsp-mode-patch))
 
   ;; Progress-silencing advice — only installed when the user has opted
   ;; in to hiding ltex-ls-plus progress updates by setting
@@ -1488,8 +1504,16 @@ measurements."
     ;; after that has no effect until Emacs restarts.
     :multi-root lsp-ltex-plus-multi-root
     :initialized-fn (lambda (workspace)
-                      (unless (lsp-ltex-plus--maybe-upstream-fixes-present-p)
-                        (lsp-ltex-plus--restore-completion-capability workspace))
+                      ;; Always call unconditionally: the function is
+                      ;; self-guarding (it only mutates a `nil'
+                      ;; `:completionProvider' slot), so on a recent
+                      ;; `lsp-mode' where PR #5059 already preserves the
+                      ;; empty-object capability it is a harmless no-op.
+                      ;; Gating it on `--maybe-upstream-fixes-present-p'
+                      ;; would risk silently dropping the workaround on a
+                      ;; future `lsp-mode' where the marker happens to
+                      ;; exist but the fix has regressed or moved.
+                      (lsp-ltex-plus--restore-completion-capability workspace)
                       (lsp-ltex-plus--log "Server initialized; pushing configuration...")
                       ;; Object- and boolean-typed fields go through the
                       ;; `--obj-or-empty' / `--bool' helpers so `nil' serializes
