@@ -287,9 +287,10 @@ the field value should be ignored."
 
 (defcustom lsp-ltex-plus-latex-commands nil
   "List of LaTeX commands to be handled by the LaTeX parser.
-Listed together with empty arguments (e.g., \"\\ref{}\", \"\\documentclass[]{}\").
-This setting is an object with the commands as keys and corresponding actions
-as values (\"default\", \"ignore\", \"dummy\", \"pluralDummy\", \"vowelDummy\")."
+Listed together with empty arguments (e.g., \"\\ref{}\",
+\"\\documentclass[]{}\").  This setting is an object with the commands
+as keys and corresponding actions as values (\"default\", \"ignore\",
+\"dummy\", \"pluralDummy\", \"vowelDummy\")."
   :type 'alist
   :group 'lsp-ltex-plus)
 
@@ -302,8 +303,9 @@ actions as values (\"default\", \"ignore\")."
 
 (defcustom lsp-ltex-plus-markdown-nodes nil
   "List of Markdown node types to be handled by the Markdown parser.
-This setting is an object with the node types as keys and corresponding actions
-as values (\"default\", \"ignore\", \"dummy\", \"pluralDummy\", \"vowelDummy\")."
+This setting is an object with the node types as keys and corresponding
+actions as values (\"default\", \"ignore\", \"dummy\", \"pluralDummy\",
+\"vowelDummy\")."
   :type 'alist
   :group 'lsp-ltex-plus)
 
@@ -330,7 +332,8 @@ Set this to the parent directory that contains subdirectories for languages."
 (defcustom lsp-ltex-plus-lt-server-uri nil
   "Base URI for the LanguageTool HTTP server.
 When nil (default), ltex-ls-plus uses its local, built-in LanguageTool.
-To use an online service, set this to e.g., \"https://api.languagetoolplus.com\".
+To use an online service, set this to e.g.,
+\"https://api.languagetoolplus.com\".
 Note: ltex-ls-plus appends /v2/check to this, so omit the /v2 suffix here."
   :type '(choice (const :tag "Local (Built-in)" nil)
                  (string :tag "Remote URI"))
@@ -356,8 +359,8 @@ It contains bin and lib subdirectories.  If empty, the bundled version is used."
 
 (defcustom lsp-ltex-plus-ltex-ls-log-level "fine"
   "Logging level (verbosity) of the ltex-ls-plus server log.
-The levels in descending order are \"severe\", \"warning\", \"info\", \"config\",
-\"fine\", \"finer\", and \"finest\"."
+The levels in descending order are \"severe\", \"warning\", \"info\",
+\"config\", \"fine\", \"finer\", and \"finest\"."
   :type '(choice (const "severe") (const "warning") (const "info")
                  (const "config") (const "fine") (const "finer")
                  (const "finest"))
@@ -411,7 +414,7 @@ Possible severities are \"error\", \"warning\", \"information\", and \"hint\"."
   :group 'lsp-ltex-plus)
 
 (defcustom lsp-ltex-plus-apply-kind-first-patch nil
-  "Whether to apply the \\='Kind-First\\=' and related protocol patches to `lsp-mode'.
+  "Whether to apply protocol patches to `lsp-mode' (Kind-First and related).
 When non-nil, several surgical fixes are applied to `lsp-mode' to
 improve protocol robustness:
 
@@ -851,7 +854,7 @@ outgoing side is needed (except for empty maps, where
 ;;    after they have already timed out or been cancelled.
 
 (defun lsp-ltex-plus--parser-on-message-patch (json-data workspace)
-  "Patched `lsp--parser-on-message' to prioritize \\='method\\=' (Kind-First routing).
+  "Patched `lsp--parser-on-message' implementing Kind-First routing.
 
 JSON-DATA is the parsed JSON message; WORKSPACE is the active lsp workspace.
 
