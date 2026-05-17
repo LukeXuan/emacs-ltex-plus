@@ -292,7 +292,7 @@ is installed only once."
 
 ;;;###autoload
 (define-obsolete-function-alias 'lsp-ltex-plus-install-hooks
-  'lsp-ltex-plus-enable-for-modes "0.2.0")
+  #'lsp-ltex-plus-enable-for-modes "0.2.0")
 
 
 (provide 'lsp-ltex-plus-bootstrap)
