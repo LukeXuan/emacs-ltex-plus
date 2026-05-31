@@ -320,17 +320,18 @@ etc., at the cost of more false positives."
   :type 'boolean
   :group 'lsp-ltex-plus)
 
-(defcustom lsp-ltex-plus-additional-rules-mother-tongue ""
+(defcustom lsp-ltex-plus-additional-rules-mother-tongue nil
   "Optional mother tongue of the user (e.g., \"de-DE\").
 If set, additional rules will be checked to detect false friends. Picky rules
-may need to be enabled in order to see an effect."
-  :type 'string
+may need to be enabled in order to see an effect.  nil means unset."
+  :type '(choice (const :tag "Unset" nil) (string :tag "Language code"))
   :group 'lsp-ltex-plus)
 
-(defcustom lsp-ltex-plus-additional-rules-language-model ""
+(defcustom lsp-ltex-plus-additional-rules-language-model nil
   "Optional path to a directory with rules of a language model with n-gram counts.
-Set this to the parent directory that contains subdirectories for languages."
-  :type 'string
+Set this to the parent directory that contains subdirectories for
+languages.  nil means unset."
+  :type '(choice (const :tag "Unset" nil) (directory :tag "Directory"))
   :group 'lsp-ltex-plus)
 
 (defcustom lsp-ltex-plus-lt-server-uri nil
@@ -343,22 +344,23 @@ Note: ltex-ls-plus appends /v2/check to this, so omit the /v2 suffix here."
                  (string :tag "Remote URI"))
   :group 'lsp-ltex-plus)
 
-(defcustom lsp-ltex-plus-lt-username ""
+(defcustom lsp-ltex-plus-lt-username nil
   "Username/email as used to log in at languagetool.org for Premium API access.
-Only relevant if `lsp-ltex-plus-lt-server-uri' is set."
-  :type 'string
+Only relevant if `lsp-ltex-plus-lt-server-uri' is set.  nil means unset."
+  :type '(choice (const :tag "Unset" nil) (string :tag "Username/email"))
   :group 'lsp-ltex-plus)
 
-(defcustom lsp-ltex-plus-lt-api-key ""
+(defcustom lsp-ltex-plus-lt-api-key nil
   "API key for Premium API access.
-Only relevant if `lsp-ltex-plus-lt-server-uri' is set."
-  :type 'string
+Only relevant if `lsp-ltex-plus-lt-server-uri' is set.  nil means unset."
+  :type '(choice (const :tag "Unset" nil) (string :tag "API key"))
   :group 'lsp-ltex-plus)
 
-(defcustom lsp-ltex-plus-ltex-ls-path ""
-  "Use the path to the root directory of ltex-ls-plus.
-It contains bin and lib subdirectories.  If empty, the bundled version is used."
-  :type 'string
+(defcustom lsp-ltex-plus-ltex-ls-path nil
+  "Path to the root directory of ltex-ls-plus.
+It contains bin and lib subdirectories.  nil (or empty) means the
+bundled version is used."
+  :type '(choice (const :tag "Bundled" nil) (directory :tag "Directory"))
   :group 'lsp-ltex-plus)
 
 (defcustom lsp-ltex-plus-ltex-ls-log-level "fine"
@@ -370,10 +372,11 @@ The levels in descending order are \"severe\", \"warning\", \"info\",
                  (const "finest"))
   :group 'lsp-ltex-plus)
 
-(defcustom lsp-ltex-plus-java-path ""
+(defcustom lsp-ltex-plus-java-path nil
   "Path to an existing Java installation on your computer.
-Use the same path as you would use for the JAVA_HOME environment variable."
-  :type 'string
+Use the same path as you would use for the JAVA_HOME environment
+variable.  nil means unset (the bundled or PATH Java is used)."
+  :type '(choice (const :tag "Unset" nil) (directory :tag "Directory"))
   :group 'lsp-ltex-plus)
 
 (defcustom lsp-ltex-plus-java-initial-heap 64
@@ -560,6 +563,14 @@ as null.  An empty hash-table is unambiguously a JSON object."
 For settings whose JSON type is a boolean.  Without this, a nil
 defcustom would serialize as JSON null rather than false."
   (if val t :json-false))
+
+(defsubst lsp-ltex-plus--str (val)
+  "Return VAL if non-nil, else the empty string \"\".
+For string-typed settings.  Storing nil for \"unset\" is the
+Emacs-idiomatic choice; the server expects a string, so nil is
+translated to \"\" at the protocol boundary.  An explicit \"\" left in
+an existing user config passes through unchanged."
+  (or val ""))
 
 (defun lsp-ltex-plus--elapsed ()
   "Return seconds (float) since `lsp-ltex-plus--start-time' or Emacs init."
@@ -1488,14 +1499,14 @@ measurements."
      ("ltex.latex.environments"                  ,(lambda () (lsp-ltex-plus--obj-or-empty lsp-ltex-plus-latex-environments)))
      ("ltex.markdown.nodes"                      ,(lambda () (lsp-ltex-plus--obj-or-empty lsp-ltex-plus-markdown-nodes)))
      ("ltex.additionalRules.enablePickyRules"    ,(lambda () (lsp-ltex-plus--bool lsp-ltex-plus-additional-rules-enable-picky-rules)))
-     ("ltex.additionalRules.motherTongue"        lsp-ltex-plus-additional-rules-mother-tongue)
-     ("ltex.additionalRules.languageModel"       lsp-ltex-plus-additional-rules-language-model)
-     ("ltex.languageToolHttpServerUri"           ,(lambda () (or lsp-ltex-plus-lt-server-uri "")))
-     ("ltex.languageToolOrg.username"            lsp-ltex-plus-lt-username)
-     ("ltex.ltex-ls.languageToolOrgApiKey"       lsp-ltex-plus-lt-api-key)
-     ("ltex.ltex-ls.path"                        lsp-ltex-plus-ltex-ls-path)
+     ("ltex.additionalRules.motherTongue"        ,(lambda () (lsp-ltex-plus--str lsp-ltex-plus-additional-rules-mother-tongue)))
+     ("ltex.additionalRules.languageModel"       ,(lambda () (lsp-ltex-plus--str lsp-ltex-plus-additional-rules-language-model)))
+     ("ltex.languageToolHttpServerUri"           ,(lambda () (lsp-ltex-plus--str lsp-ltex-plus-lt-server-uri)))
+     ("ltex.languageToolOrg.username"            ,(lambda () (lsp-ltex-plus--str lsp-ltex-plus-lt-username)))
+     ("ltex.ltex-ls.languageToolOrgApiKey"       ,(lambda () (lsp-ltex-plus--str lsp-ltex-plus-lt-api-key)))
+     ("ltex.ltex-ls.path"                        ,(lambda () (lsp-ltex-plus--str lsp-ltex-plus-ltex-ls-path)))
      ("ltex.ltex-ls.logLevel"                    lsp-ltex-plus-ltex-ls-log-level)
-     ("ltex.java.path"                           lsp-ltex-plus-java-path)
+     ("ltex.java.path"                           ,(lambda () (lsp-ltex-plus--str lsp-ltex-plus-java-path)))
      ("ltex.java.initialHeapSize"                lsp-ltex-plus-java-initial-heap)
      ("ltex.java.maximumHeapSize"                lsp-ltex-plus-java-max-heap)
      ("ltex.sentenceCacheSize"                   lsp-ltex-plus-sentence-cache-size)
@@ -1568,14 +1579,14 @@ measurements."
                                                                                  :environments ,(lsp-ltex-plus--obj-or-empty lsp-ltex-plus-latex-environments))
                                                                :markdown (:nodes ,(lsp-ltex-plus--obj-or-empty lsp-ltex-plus-markdown-nodes))
                                                                :additionalRules (:enablePickyRules ,(lsp-ltex-plus--bool lsp-ltex-plus-additional-rules-enable-picky-rules)
-                                                                                                   :motherTongue ,lsp-ltex-plus-additional-rules-mother-tongue
-                                                                                                   :languageModel ,lsp-ltex-plus-additional-rules-language-model)
-                                                               :languageToolHttpServerUri ,(or lsp-ltex-plus-lt-server-uri "")
-                                                               :languageToolOrg (:username ,lsp-ltex-plus-lt-username)
-                                                               :ltex-ls (:languageToolOrgApiKey ,lsp-ltex-plus-lt-api-key
-                                                                                                :path ,lsp-ltex-plus-ltex-ls-path
+                                                                                                   :motherTongue ,(lsp-ltex-plus--str lsp-ltex-plus-additional-rules-mother-tongue)
+                                                                                                   :languageModel ,(lsp-ltex-plus--str lsp-ltex-plus-additional-rules-language-model))
+                                                               :languageToolHttpServerUri ,(lsp-ltex-plus--str lsp-ltex-plus-lt-server-uri)
+                                                               :languageToolOrg (:username ,(lsp-ltex-plus--str lsp-ltex-plus-lt-username))
+                                                               :ltex-ls (:languageToolOrgApiKey ,(lsp-ltex-plus--str lsp-ltex-plus-lt-api-key)
+                                                                                                :path ,(lsp-ltex-plus--str lsp-ltex-plus-ltex-ls-path)
                                                                                                 :logLevel ,lsp-ltex-plus-ltex-ls-log-level)
-                                                               :java (:path ,lsp-ltex-plus-java-path
+                                                               :java (:path ,(lsp-ltex-plus--str lsp-ltex-plus-java-path)
                                                                             :initialHeapSize ,lsp-ltex-plus-java-initial-heap
                                                                             :maximumHeapSize ,lsp-ltex-plus-java-max-heap)
                                                                :sentenceCacheSize ,lsp-ltex-plus-sentence-cache-size
