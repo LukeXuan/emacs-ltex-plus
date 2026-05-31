@@ -553,6 +553,19 @@ Custom-defined false positives are stored in
 stored in `lsp-ltex-plus--hidden-false-positives-stored'.  Read by the
 server; recomputed whenever either source changes.")
 
+(defvar lsp-ltex-plus--server-name nil
+  "Name the connected ltex-ls-plus reported via `serverInfo', or nil.
+Captured in `:initialized-fn' from the `initialize' response.  Stays nil
+on an `lsp-mode' that lacks the `serverInfo' accessors or against a
+server that omits `serverInfo'.")
+
+(defvar lsp-ltex-plus--server-version nil
+  "Version string the connected ltex-ls-plus reported via `serverInfo', or nil.
+Captured in `:initialized-fn' from the `initialize' response.  Stays nil
+on an `lsp-mode' that lacks the `serverInfo' accessors or against a
+server that omits the version.  The raw string is stored verbatim (e.g.
+\"18.7.0-alpha.94+2026-05-31.gb2fd8fa0\"); no parsing is done here.")
+
 ;; -- JSON-serialization helpers -----------------------------------------------
 ;;
 ;; In Elisp `nil' is overloaded: it is `false', the empty list, the empty plist,
@@ -1261,6 +1274,26 @@ probe's marker symbol but regresses or relocates the PR #5059 fix."
                  (null (plist-get caps :completionProvider)))
         (plist-put caps :completionProvider '(:resolveProvider nil))))))
 
+(defun lsp-ltex-plus--capture-server-info (workspace)
+  "Store WORKSPACE's reported server name and version, if available.
+Reads the `serverInfo' the server returned in its `initialize' response
+via the `lsp-workspace-server-name' / `-server-version' accessors and
+records them in `lsp-ltex-plus--server-name' and
+`lsp-ltex-plus--server-version'.
+
+Those accessors only exist on an `lsp-mode' that carries the
+`serverInfo' plumbing, so the call is guarded with `fboundp': on an
+older `lsp-mode' this is a no-op and both variables stay nil.  A server
+that omits `serverInfo' (or its version) also leaves the corresponding
+variable nil."
+  (when (and (fboundp 'lsp-workspace-server-name)
+             (fboundp 'lsp-workspace-server-version))
+    (setq lsp-ltex-plus--server-name (lsp-workspace-server-name workspace)
+          lsp-ltex-plus--server-version (lsp-workspace-server-version workspace))
+    (lsp-ltex-plus--log "Connected server: %s %s"
+                        (or lsp-ltex-plus--server-name "<unknown>")
+                        (or lsp-ltex-plus--server-version "<no version>"))))
+
 (defun lsp-ltex-plus--suppress-progress (orig-fn workspace params)
   "Swallow ltex-ls-plus progress notifications.
 Notifications are silenced when `lsp-ltex-plus-show-progress' is nil.
@@ -1580,6 +1613,7 @@ measurements."
                       ;; future `lsp-mode' where the marker happens to
                       ;; exist but the fix has regressed or moved.
                       (lsp-ltex-plus--restore-completion-capability workspace)
+                      (lsp-ltex-plus--capture-server-info workspace)
                       (lsp-ltex-plus--log "Server initialized; pushing configuration...")
                       ;; Object- and boolean-typed fields go through the
                       ;; `--obj-or-empty' / `--bool' helpers so `nil' serializes
