@@ -386,10 +386,16 @@ Use the same path as you would use for the JAVA_HOME environment variable."
   :type 'integer
   :group 'lsp-ltex-plus)
 
-(defcustom lsp-ltex-plus-sentence-cache-size 2000
+(defcustom lsp-ltex-plus-sentence-cache-size 0
   "Size of the LanguageTool ResultCache in sentences.
-Decreasing this might decrease RAM usage.  If you set this too small, checking
-time may increase significantly."
+The default and recommended value is 0, which disables the local
+LanguageTool server's own cache entirely.  ltex-ls-plus keeps its own
+per-paragraph fragment cache, which supersedes LanguageTool's caching.
+Use a positive value to turn it back on, but be aware that this is
+redundant and only adds CPU and memory overhead with no additional
+benefit."
+  :type 'integer
+  :group 'lsp-ltex-plus)
 
 (defcustom lsp-ltex-plus-max-fragment-size 20000
   "Largest amount of text, in characters, sent to LanguageTool in one request.

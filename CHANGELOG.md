@@ -7,6 +7,9 @@
 - **Emacs Lisp support.** `emacs-lisp-mode` is now registered in `lsp-ltex-plus-major-modes` with language ID `"elisp"`, matching the new Emacs Lisp parser merged into `ltex-ls-plus` upstream. Requires new LTeX+ v18.7+ (commits `590ed42` and `010af31f`). LTeX+ checks grammar inside Elisp comments and docstrings when `lsp-ltex-plus-check-programming-languages` is non-nil. The server also accepts `"emacs-lisp"` as an alias; this is recorded in `dev/check_language_ids.py` so the upstream sync check stays clean.
 - **`lsp-ltex-plus--maybe-upstream-fixes-present-p` is now wired up.** The v0.3.4 stub returned `nil`; it now tests `(fboundp 'lsp--inlay-hint-tooltip-text)`, a function added to `lsp-mode.el` in commit [`8b04cf63`](https://github.com/emacs-lsp/lsp-mode/commit/8b04cf63) (2026-05-17) — the commit immediately after [`0951bf38`](https://github.com/emacs-lsp/lsp-mode/commit/0951bf38), where the last of the five protocol fixes landed. The probe is advisory only: when it returns non-nil and `lsp-ltex-plus-apply-kind-first-patch` is set, a one-shot log suggests removing the option, but the patches are still applied.
 
+### Changed
+- **`lsp-ltex-plus-sentence-cache-size` now defaults to `0` (was `2000`),** tracking the same change to `ltex.sentenceCacheSize` in `ltex-ls-plus` [PR #176](https://github.com/ltex-plus/ltex-ls-plus/pull/176). The default and recommended value `0` disables the local LanguageTool server's own cache entirely: ltex-ls-plus keeps its own per-paragraph fragment cache, which supersedes LanguageTool's caching. A value of `0` (or any non-positive value) takes LanguageTool's genuine no-cache code path rather than allocating a zero-capacity cache. Use a positive value to turn it back on, but be aware that for the edit loop this is redundant and only adds CPU and memory overhead with no additional benefit.
+
 ## [0.3.5] - 2026-05-15
 
 ### Changed
