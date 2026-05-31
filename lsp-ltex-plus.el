@@ -393,14 +393,16 @@ variable.  nil means unset (the bundled or PATH Java is used)."
   "Size of the LanguageTool ResultCache in sentences.
 The default and recommended value is 0, which disables the local
 LanguageTool server's own cache entirely.  ltex-ls-plus keeps its own
-per-paragraph fragment cache, which supersedes LanguageTool's caching.
+per-paragraph cache, which supersedes LanguageTool's caching.
 Use a positive value to turn it back on, but be aware that this is
 redundant and only adds CPU and memory overhead with no additional
-benefit."
+benefit.  To go back to LanguageTool's caching instead of the
+per-paragraph cache, set this to a positive value and also set
+`lsp-ltex-plus-paragraph-cache-enabled' to nil."
   :type 'integer
   :group 'lsp-ltex-plus)
 
-(defcustom lsp-ltex-plus-max-fragment-size 20000
+(defcustom lsp-ltex-plus-max-request-size 20000
   "Largest amount of text, in characters, sent to LanguageTool in one request.
 ltex-ls-plus caches results per paragraph and re-checks only the
 paragraphs you edited.  When several changed paragraphs sit next to
@@ -410,19 +412,33 @@ several requests, but an individual paragraph is never split.  The
 default fits within the per-request character limit of the free
 remote LanguageTool service.  If you use a local server
 \(`lsp-ltex-plus-lt-server-uri' is nil) or have a Premium account,
-consider raising it to 60000.  This does not affect caching
-granularity, which is always per paragraph."
+consider raising it to 60000.  This does not affect caching granularity,
+which is always per paragraph."
   :type 'integer
   :group 'lsp-ltex-plus)
 
-(defcustom lsp-ltex-plus-fragment-cache-ttl-minutes 30
-  "How long, in minutes, a document's cached fragment results are kept unused.
-The fragment cache lets ltex-ls-plus reuse the results of unchanged
-paragraphs after an edit.  Entries for the file you are actively
-editing stay warm; a document left untouched for longer than this is
-dropped from the cache.  A document's cache is also cleared as soon
-as the file is closed."
+(defcustom lsp-ltex-plus-paragraph-cache-ttl-minutes 30
+  "How long, in minutes, a document's cached results are kept unused.
+The per-paragraph cache lets ltex-ls-plus reuse the results of
+unchanged paragraphs after an edit.  Entries for the file you are
+actively editing stay warm; a document left untouched for longer than
+this is dropped from the cache.  A document's cache is also cleared as
+soon as the file is closed."
   :type 'integer
+  :group 'lsp-ltex-plus)
+
+(defcustom lsp-ltex-plus-paragraph-cache-enabled t
+  "Whether ltex-ls-plus reuses cached results for unchanged paragraphs.
+When non-nil (the default and recommended), each paragraph's result is
+stored and reused, so an edit only re-checks the paragraphs that
+changed.  Set to nil to disable reuse of results, so every paragraph is
+re-checked on each pass.  This does not affect
+`lsp-ltex-plus-max-request-size': the text is always sliced into
+paragraphs, which in turn are batched into requests.  If disabled,
+sliced paragraphs are just never stored or served from the cache.
+Disabling this and setting `lsp-ltex-plus-sentence-cache-size' to a
+positive value restores LanguageTool's own caching instead."
+  :type 'boolean
   :group 'lsp-ltex-plus)
 
 (defcustom lsp-ltex-plus-completion-enabled nil
@@ -1510,8 +1526,9 @@ measurements."
      ("ltex.java.initialHeapSize"                lsp-ltex-plus-java-initial-heap)
      ("ltex.java.maximumHeapSize"                lsp-ltex-plus-java-max-heap)
      ("ltex.sentenceCacheSize"                   lsp-ltex-plus-sentence-cache-size)
-     ("ltex.maxFragmentSize"                     lsp-ltex-plus-max-fragment-size)
-     ("ltex.fragmentCacheTtlMinutes"             lsp-ltex-plus-fragment-cache-ttl-minutes)
+     ("ltex.maxRequestSize"                      lsp-ltex-plus-max-request-size)
+     ("ltex.paragraphCacheTtlMinutes"            lsp-ltex-plus-paragraph-cache-ttl-minutes)
+     ("ltex.paragraphCacheEnabled"               ,(lambda () (lsp-ltex-plus--bool lsp-ltex-plus-paragraph-cache-enabled)))
      ("ltex.completionEnabled"                   ,(lambda () (lsp-ltex-plus--bool lsp-ltex-plus-completion-enabled)))
      ("ltex.diagnosticSeverity"                  lsp-ltex-plus-diagnostic-severity)
      ("ltex.checkFrequency"                      lsp-ltex-plus-check-frequency)
@@ -1590,8 +1607,9 @@ measurements."
                                                                             :initialHeapSize ,lsp-ltex-plus-java-initial-heap
                                                                             :maximumHeapSize ,lsp-ltex-plus-java-max-heap)
                                                                :sentenceCacheSize ,lsp-ltex-plus-sentence-cache-size
-                                                               :maxFragmentSize ,lsp-ltex-plus-max-fragment-size
-                                                               :fragmentCacheTtlMinutes ,lsp-ltex-plus-fragment-cache-ttl-minutes
+                                                               :maxRequestSize ,lsp-ltex-plus-max-request-size
+                                                               :paragraphCacheTtlMinutes ,lsp-ltex-plus-paragraph-cache-ttl-minutes
+                                                               :paragraphCacheEnabled ,(lsp-ltex-plus--bool lsp-ltex-plus-paragraph-cache-enabled)
                                                                :completionEnabled ,(lsp-ltex-plus--bool lsp-ltex-plus-completion-enabled)
                                                                :diagnosticSeverity ,lsp-ltex-plus-diagnostic-severity
                                                                :checkFrequency ,lsp-ltex-plus-check-frequency
