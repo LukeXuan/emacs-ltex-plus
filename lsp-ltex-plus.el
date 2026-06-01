@@ -1,4 +1,4 @@
-;;; lsp-ltex-plus.el --- Minimal lsp-mode client for ltex-ls-plus -*- lexical-binding: t; -*-
+;;; lsp-ltex-plus.el --- Grammar and spell checking for LaTeX, Markdown, Org and more -*- lexical-binding: t; -*-
 
 ;; Author: Andrea Alberti <a.alberti82@gmail.com>
 ;; Maintainer: Andrea Alberti <a.alberti82@gmail.com>
