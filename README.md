@@ -148,6 +148,15 @@ For `lsp-ltex-plus` to work, Emacs must be able to find the `ltex-ls-plus` binar
 
 ## Installation (Emacs Package)
 
+### Using MELPA
+
+`lsp-ltex-plus` is published on [MELPA](https://melpa.org/#/lsp-ltex-plus). Once MELPA is in your `package-archives` (see [MELPA's Getting Started](https://melpa.org/#/getting-started) if it isn't), install with `M-x package-install RET lsp-ltex-plus RET`, or with `use-package`:
+
+```elisp
+(use-package lsp-ltex-plus
+  :ensure t)
+```
+
 ### Using straight.el
 
 ```elisp
@@ -157,7 +166,7 @@ For `lsp-ltex-plus` to work, Emacs must be able to find the `ltex-ls-plus` binar
 
 ### Manual Installation
 
-Download `lsp-ltex-plus.el`, place it in your load path, and require it:
+Download `lsp-ltex-plus.el` and `lsp-ltex-plus-bootstrap.el`, place them in your load path, and require the main file:
 
 ```elisp
 (require 'lsp-ltex-plus)
@@ -173,6 +182,8 @@ The most idiomatic way to use this package is to call `lsp-ltex-plus-enable-for-
   :init
   (lsp-ltex-plus-enable-for-modes))
 ```
+
+> **Note on `:ensure t`:** The `use-package` snippets above omit `:ensure t` because the package is assumed to be already installed via one of the paths above. If you use vanilla `package.el` and have not set `use-package-always-ensure` (or an equivalent like `straight-use-package-by-default`), add `:ensure t` to make `use-package` fetch the package from your configured archives on first run.
 
 ### Customizing Supported Modes
 
