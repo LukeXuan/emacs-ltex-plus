@@ -465,6 +465,20 @@ Possible severities are \"error\", \"warning\", \"information\", and \"hint\"."
   :type 'boolean
   :group 'lsp-ltex-plus)
 
+(defcustom lsp-ltex-plus-check-fileless-buffers t
+  "When non-nil, grammar-check buffers that have no backing file.
+File-less buffers (e.g. *scratch*, capture buffers) in a recognized major
+mode are given a synthetic file:// URI under `lsp-ltex-plus-scratch-root'
+and share a single workspace, so one server process serves them all.
+
+This is orthogonal to `lsp-ltex-plus-check-programming-languages': a
+file-less buffer in a programming mode (such as *scratch*, which uses
+`lisp-interaction-mode') is still auto-activated only when programming
+checks are also enabled, but an explicit \\[lsp-ltex-plus-mode] always
+works."
+  :type 'boolean
+  :group 'lsp-ltex-plus)
+
 (defcustom lsp-ltex-plus-apply-kind-first-patch nil
   "Whether to apply protocol patches to `lsp-mode' (Kind-First and related).
 When non-nil, several surgical fixes are applied to `lsp-mode' to
@@ -497,6 +511,16 @@ Note: These are global surgical patches affecting all LSP servers."
 
 (defvar lsp-ltex-plus--start-time nil
   "Timestamp of when `lsp-ltex-plus--setup' was executed.")
+
+(defvar-local lsp-ltex-plus--fileless-uri nil
+  "Synthetic file:// URI assigned to this file-less buffer, or nil.
+Set by `lsp-ltex-plus--setup-fileless-buffer' and reused for the lifetime
+of the buffer (or until it is saved to a real file).")
+
+(defvar lsp-ltex-plus--fileless-counter 0
+  "Monotonic counter for generating unique file-less buffer URIs.
+Combined with the Emacs PID so synthetic paths never collide within or
+across sessions; see `lsp-ltex-plus--make-fileless-uri'.")
 
 (defvar lsp-ltex-plus--dictionary-stored nil
   "Dictionary plist loaded from on-disk file.
@@ -655,6 +679,14 @@ effectively a no-op by construction."
 (defvar lsp-ltex-plus-hidden-false-positives-file
   (expand-file-name "lsp-ltex-plus/hidden-false-positives.eld" user-emacs-directory)
   "Path to the external hidden false positives file (plist format).")
+
+(defvar lsp-ltex-plus-scratch-root
+  (expand-file-name "lsp-ltex-plus/scratch/" user-emacs-directory)
+  "Shared synthetic workspace root for file-less buffers.
+Must exist on disk: `lsp--start-workspace' binds `default-directory' to
+the workspace root when spawning the server process.  The directory is
+created (if missing) by `lsp-ltex-plus--setup' and stays empty — no file
+is ever written there.")
 
 (defun lsp-ltex-plus--load-plist (file-path)
   "Load a plist from FILE-PATH.  Return nil if it doesn't exist or fails."
@@ -1531,6 +1563,12 @@ measurements."
 
   (lsp-ltex-plus--load-external-settings)
 
+  ;; Ensure the shared synthetic root for file-less buffers exists, since
+  ;; `lsp--start-workspace' binds `default-directory' to it when spawning the
+  ;; server process.  Cheap and idempotent; the directory stays empty.
+  (unless (file-directory-p lsp-ltex-plus-scratch-root)
+    (make-directory lsp-ltex-plus-scratch-root t))
+
   (lsp-ltex-plus--log "Registering settings and client...")
   (lsp-ltex-plus--log "Registering ltex-ls-plus client (priority: -1)...")
   ;; Object- and boolean-typed fields are wrapped via the
@@ -1685,21 +1723,140 @@ measurements."
 
 ;;;; -- Activation -------------------------------------------------------------
 
-(defun lsp-ltex-plus--rejoin-workspace ()
+(defun lsp-ltex-plus--make-fileless-uri ()
+  "Return a fresh, unique synthetic file:// URI under the scratch root.
+The basename embeds the Emacs PID and a monotonic counter so distinct
+file-less buffers map to distinct documents inside the one shared
+workspace.  The buffer name is deliberately NOT used: it can be renamed,
+uniquified (\"foo<2>\"), or collide.  The \".txt\" suffix only keeps the
+synthetic path well-formed — the wire language ID still comes from the
+`:language-id' lambda in `lsp-register-client'."
+  ;; Plain `setq'/`1+' rather than `cl-incf': `cl-incf' is deprecated in
+  ;; favour of the built-in `incf' added in Emacs 31.1, but `incf' does not
+  ;; exist on our 27.1 floor, so neither macro is portable here.
+  (lsp--path-to-uri
+   (expand-file-name (format "scratch-%d-%d.txt"
+                             (emacs-pid)
+                             (setq lsp-ltex-plus--fileless-counter
+                                   (1+ lsp-ltex-plus--fileless-counter)))
+                     lsp-ltex-plus-scratch-root)))
+
+(defun lsp-ltex-plus--setup-fileless-buffer ()
+  "Give the current file-less buffer a synthetic identity for `lsp-mode'.
+Sets the buffer-local URI override, a whole-buffer pass-through
+`lsp--virtual-buffer' plist (so `lsp-mode' has a complete buffer identity
+and diagnostics route back here), and disables auto-touch so no file is
+written.  Idempotent: reuses an already-assigned URI.
+
+The plist is a \"pass-through\": `lsp-mode' addresses non-file buffers
+through `lsp--virtual-buffer' rather than the variable `buffer-file-name',
+so once it is set, `lsp-current-buffer' returns the plist and every
+dereference — `lsp-with-current-buffer', `lsp-buffer-live-p', diagnostics
+keying — goes through it.  A partial plist therefore breaks document
+open/close; we must supply every key `lsp-mode' reads.  Region-mapping
+keys such as `:real->virtual-line' and `:line/character->point' are
+omitted on purpose — `lsp-virtual-buffer-call' returns nil for them, so
+positions map straight through to the real buffer, which is exactly right
+for a whole buffer (as opposed to an embedded source block).  The
+`:workspaces' entry is filled in by the caller once the workspace is
+attached."
+  (let* ((buf (current-buffer))
+         (uri (or lsp-ltex-plus--fileless-uri
+                  (setq lsp-ltex-plus--fileless-uri
+                        (lsp-ltex-plus--make-fileless-uri))))
+         ;; KEY must equal the storage key computed in `lsp--on-diagnostics'
+         ;; (`(lsp--fix-path-casing (lsp--uri-to-path uri))').  We never
+         ;; register URI in `lsp--virtual-buffer-mappings', so `lsp--uri-to-path'
+         ;; round-trips it unchanged both here and there, and
+         ;; `lsp--get-buffer-diagnostics' (which prefers the virtual-buffer
+         ;; `:buffer-file-name') finds our overlays under the same KEY.
+         (key (lsp--fix-path-casing (lsp--uri-to-path uri))))
+    (setq-local lsp-buffer-uri uri)
+    (setq-local
+     lsp--virtual-buffer
+     (list :buffer buf
+           :buffer-uri uri
+           :buffer-file-name key
+           :major-mode major-mode
+           :workspaces nil
+           :in-range (lambda (&optional _point) t)
+           :goto-buffer (lambda () nil)
+           :with-current-buffer (lambda (fn) (with-current-buffer buf (funcall fn)))
+           :buffer-live? (lambda (_) (buffer-live-p buf))
+           :buffer-name (lambda (_) (buffer-name buf))))
+    (setq-local lsp-auto-touch-files nil)
+    ;; Standalone-buffer ergonomics, mirroring what file buffers get.
+    (setq-local lsp-auto-guess-root t)
+    (setq-local lsp-enable-file-watchers nil)
+    lsp--virtual-buffer))
+
+(defun lsp-ltex-plus--fileless-on-save ()
+  "Drop a file-less buffer's synthetic identity once it is saved to a file.
+Added buffer-locally to `after-set-visited-file-name-hook' when the
+file-less path activates, and prepended so it runs before `lsp-mode's own
+`lsp--after-set-visited-file-name' handler (installed by `lsp-managed-mode').
+
+When the buffer gains a real file name, this closes the synthetic document
+in the shared workspace and clears the buffer-local overrides — but does
+NOT reconnect.  `lsp-mode's handler runs next and does `(lsp-disconnect)'
+followed by `(lsp)', which reattaches the buffer under its real-file URI.
+Doing the close/clear here (while `lsp-buffer-uri' still points at the
+synthetic URI) is what lets that handoff be clean: it sends the synthetic
+`didClose' before the override is gone, so the server doesn't leak the
+synthetic document."
+  (when (and lsp-ltex-plus--fileless-uri (buffer-file-name))
+    ;; Close the synthetic document and detach from the shared workspace,
+    ;; while the synthetic URI is still the buffer's identity.
+    (when (bound-and-true-p lsp--buffer-workspaces)
+      (let ((ltex-ws (seq-find
+                      (lambda (ws)
+                        (eq 'ltex-ls-plus (lsp--workspace-server-id ws)))
+                      lsp--buffer-workspaces)))
+        (when ltex-ws
+          (with-lsp-workspace ltex-ws
+            (cl-callf2 delq (lsp-current-buffer)
+                       (lsp--workspace-buffers ltex-ws))
+            (with-demoted-errors
+                "[lsp-ltex-plus] Error closing synthetic document: %S"
+              (lsp-notify "textDocument/didClose"
+                          `(:textDocument ,(lsp--text-document-identifier)))))
+          (setq lsp--buffer-workspaces
+                (delete ltex-ws lsp--buffer-workspaces)))))
+    ;; Clear the synthetic overrides so lsp-mode's reconnect sees the real
+    ;; file URI rather than the synthetic one.
+    (kill-local-variable 'lsp-buffer-uri)
+    (kill-local-variable 'lsp-auto-touch-files)
+    (setq-local lsp--virtual-buffer nil)
+    (setq lsp-ltex-plus--fileless-uri nil)
+    ;; Our work is done; remove ourselves so a later `set-visited-file-name'
+    ;; on the now file-backed buffer is a no-op here.  `lsp-mode's
+    ;; `lsp--after-set-visited-file-name' (next on the hook) handles the
+    ;; disconnect + reconnect under the real file.
+    (remove-hook 'after-set-visited-file-name-hook
+                 #'lsp-ltex-plus--fileless-on-save t)))
+
+(defun lsp-ltex-plus--rejoin-workspace (&optional explicit-root)
   "Attach the current buffer to the ltex-ls-plus workspace only.
 Used when `lsp-ltex-plus-mode' activates in a buffer where `lsp-mode'
 is already running for another client (e.g. pyright, texlab).  A plain
 `(lsp)' would re-send `textDocument/didOpen' to every matching client,
 producing a \"redundant open text document\" warning from co-tenants.
 
-If an ltex-ls-plus workspace already exists for the current project,
-the buffer is opened in it.  Otherwise, a new ltex-ls-plus connection
-is started for the project."
+With EXPLICIT-ROOT non-nil, use it as the project root instead of
+deriving one from the variable `buffer-file-name'.  This is how
+file-less buffers attach: they all pass the shared
+`lsp-ltex-plus-scratch-root', so one server process serves them while
+their distinct synthetic URIs keep them as separate documents.
+
+If an ltex-ls-plus workspace already exists for the project root, the
+buffer is opened in it.  Otherwise, a new ltex-ls-plus connection is
+started for the root."
   (let* ((session (lsp-session))
          (client (gethash 'ltex-ls-plus lsp-clients))
-         (project-root (when-let* ((buf-file (buffer-file-name))
-                                   (root (lsp--calculate-root session buf-file)))
-                         (lsp-f-canonical root)))
+         (project-root (or explicit-root
+                           (when-let* ((buf-file (buffer-file-name))
+                                       (root (lsp--calculate-root session buf-file)))
+                             (lsp-f-canonical root))))
          (workspace (and client project-root
                          (seq-find
                           (lambda (ws)
@@ -1733,7 +1890,9 @@ silently."
   :group 'lsp-ltex-plus
   (if lsp-ltex-plus-mode
       (let* ((entry (assq major-mode lsp-ltex-plus-major-modes))
-             (programming-p (and entry (nth 2 entry))))
+             (programming-p (and entry (nth 2 entry)))
+             (fileless-p (and (not (buffer-file-name))
+                              lsp-ltex-plus-check-fileless-buffers)))
         (if (and programming-p
                  (not lsp-ltex-plus-check-programming-languages)
                  (not (called-interactively-p 'any)))
@@ -1780,11 +1939,54 @@ silently."
             (cond
              ;; lsp-mode not yet loaded — defensive, deferred startup.
              ((not (fboundp 'lsp))
-              (lsp-ltex-plus--log "Activation path: lsp-deferred (lsp-mode not loaded)")
-              (lsp-deferred))
+              (if (not fileless-p)
+                  ;; If dealing with a real file, we invoke lsp-deferred
+                  ;; that defers server startup until the buffer is visible
+                  (progn
+                    (lsp-ltex-plus--log "Activation path: lsp-deferred (lsp-mode not loaded)")
+                    (lsp-deferred))
+                ;; If dealing with a file-less buffer, invoking `lsp-deferred'
+                ;; has no effect.  A file-less buffer can't be deferred because
+                ;; `lsp-deferred' just schedules `(lsp)' for when the buffer is
+                ;; visible, and `(lsp)' does nothing without a
+                ;; `buffer-file-name'.  So, we just log and bail.
+                (lsp-ltex-plus--log
+                 "lsp-mode not loaded; cannot start file-less buffer yet")))
+             ;; A file-less buffer gets a synthetic identity and attaches to
+             ;; the shared scratch workspace.  Handled before the
+             ;; `lsp-mode'-active clause so a file-less buffer always takes
+             ;; this path and never falls through to the generic rejoin, which
+             ;; derives its root from `buffer-file-name' (nil here).
+             (fileless-p
+              (lsp-ltex-plus--log "Activation path: file-less synthetic startup")
+              (lsp-ltex-plus--setup-fileless-buffer)
+              ;; `lsp--start-workspace' builds the server's `:processId' from
+              ;; `(file-remote-p (buffer-file-name))', and `file-remote-p'
+              ;; errors on nil — which is what `buffer-file-name' is here.  So
+              ;; bind it to the synthetic path (a local, non-remote string)
+              ;; just for the start.  The real `didOpen' happens later and
+              ;; takes its URI from `lsp-buffer-uri', not from this binding, so
+              ;; the buffer stays file-less.
+              (let ((buffer-file-name (lsp--uri-to-path lsp-ltex-plus--fileless-uri)))
+                (lsp-ltex-plus--rejoin-workspace
+                 (lsp-f-canonical lsp-ltex-plus-scratch-root)))
+              (when lsp--buffer-workspaces
+                ;; The pass-through virtual buffer needs its `:workspaces' so
+                ;; `lsp-with-current-buffer' binds them when lsp-mode addresses
+                ;; the buffer by its plist identity (e.g. the post-init open
+                ;; loop, diagnostics).
+                (setq-local lsp--virtual-buffer
+                            (plist-put lsp--virtual-buffer
+                                       :workspaces lsp--buffer-workspaces))
+                ;; Turn on the lsp-mode minor mode for the lighter/keymap; its
+                ;; body no-ops now that `lsp--buffer-workspaces' is populated.
+                (lsp-mode 1))
+              ;; Switch to real-file mechanics if the buffer is later saved.
+              (add-hook 'after-set-visited-file-name-hook
+                        #'lsp-ltex-plus--fileless-on-save nil t))
              ;; lsp-mode already active in this buffer (another client,
-             ;; e.g. pyright or texlab).  Attach only the ltex-ls-plus
-             ;; workspace to avoid a redundant didOpen to the co-tenants.
+             ;; e.g. pyright or texlab).  Attach only the ltex-ls-plus workspace
+             ;; to avoid a redundant didOpen to the co-tenants.
              ((bound-and-true-p lsp-mode)
               (lsp-ltex-plus--log "Activation path: rejoin-workspace (lsp-mode already active)")
               (lsp-ltex-plus--rejoin-workspace))
