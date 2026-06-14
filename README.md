@@ -64,8 +64,8 @@ Two caveats worth stating honestly:
 Before using this package, you need:
 
 1.  **Emacs:** Version **27.1** or later. Tree-sitter major modes (`bash-ts-mode`, `python-ts-mode`, …) are picked up automatically when running on Emacs 29.1+/30.1+; on older Emacs they are silently skipped.
-2.  **Emacs lsp-mode:** This package is an extension for `lsp-mode` (version 6.0 or higher). Therefore, `lsp-mode` must be installed and available before `lsp-ltex-plus` can function. We strongly recommend a recent build — see [Recommended `lsp-mode` Revision](#recommended-lsp-mode-revision) below.
-3.  **LTeX+ Language Server:** This is the core engine that performs the grammar checks. See [Server Installation](#server-installation) below.
+2.  **Emacs lsp-mode:** This package is an extension for `lsp-mode` (version 6.0 or higher). Therefore, `lsp-mode` must be installed and available before `lsp-ltex-plus` can function. We strongly recommend a recent build; see [Recommended `lsp-mode` Revision](#recommended-lsp-mode-revision) below.
+3.  **LTeX+ Language Server:** This is the core engine that performs the grammar checks. The recommended version is 18.7+. See [Server Installation](#server-installation) below on how to install it.
 4.  **Java:** LTeX+ requires **Java 21** or higher. Most platform-specific releases of LTeX+ include a bundled Java runtime, so you don't necessarily need to install it separately. See [Java Runtime Configuration](#3-java-runtime-configuration) for details.
 
 ### Recommended `lsp-mode` Revision
